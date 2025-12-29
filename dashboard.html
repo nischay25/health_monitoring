@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Health Monitoring Dashboard</title>
+
+<style>
+  body {
+    background: #0f172a;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  }
+
+  h1 {
+    margin-top: 20px;
+  }
+
+  .top {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin: 20px;
+  }
+
+  .card {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 12px;
+    width: 180px;
+  }
+
+  .label {
+    font-size: 14px;
+    color: #94a3b8;
+  }
+
+  .value {
+    font-size: 36px;
+    margin-top: 10px;
+  }
+
+  #status {
+    font-size: 26px;
+    font-weight: bold;
+  }
+
+  canvas {
+    background: #020617;
+    border-radius: 10px;
+    margin-top: 20px;
+  }
+
+  button {
+    margin-top: 20px;
+    padding: 12px 20px;
+    font-size: 16px;
+    background: #38bdf8;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>Smart Health Monitoring Dashboard</h1>
+
+<div class="top">
+  <div class="card">
+    <div class="label">BPM</div>
+    <div class="value" id="bpm">--</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Status</div>
+    <div id="status">---</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Normal Range</div>
+    <div class="value">60 - 100</div>
+  </div>
+</div>
+
+<canvas id="graph" width="800" height="300"></canvas>
+
+<br>
+<button id="connect">Connect Arduino</button>
+
+<script>
+  const connectBtn = document.getElementById("connect");
+  const bpmText = document.getElementById("bpm");
+  const statusText = document.getElementById("status");
+
+  const canvas = document.getElementById("graph");
+  const ctx = canvas.getContext("2d");
+
+  let bpmData = [];
+  let serialBuffer = "";   // 🔑 IMPORTANT BUFFER
+
+  function getStatus(bpm) {
+    if (bpm < 60) return { text: "LOW BP", color: "yellow" };
+    if (bpm > 100) return { text: "HIGH BP", color: "red" };
+    return { text: "NORMAL BP", color: "lime" };
+  }
+
+  function drawGraph(bpm) {
+    if (bpmData.length > 60) bpmData.shift();
+    bpmData.push(bpm);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.strokeStyle = "#22c55e";
+    ctx.lineWidth = 2;
+
+    bpmData.forEach((v, i) => {
+      let x = (i / 60) * canvas.width;
+      let y = canvas.height - (v * 2);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+
+    ctx.stroke();
+  }
+
+  connectBtn.addEventListener("click", async () => {
+    if (!("serial" in navigator)) {
+      alert("Web Serial API not supported. Use Chrome or Edge.");
+      return;
+    }
+
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 9600 });
+
+    const decoder = new TextDecoderStream();
+    port.readable.pipeTo(decoder.writable);
+    const reader = decoder.readable.getReader();
+
+    connectBtn.innerText = "Connected";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      // 🔑 Accumulate incoming serial data
+      serialBuffer += value;
+
+      // Split by newline
+      const lines = serialBuffer.split("\n");
+      serialBuffer = lines.pop(); // keep incomplete data
+
+      for (let line of lines) {
+        line = line.trim();
+
+        // Accept ONLY numeric BPM values
+        if (/^\d+$/.test(line)) {
+          const bpm = parseInt(line);
+
+          bpmText.textContent = bpm;
+
+          const status = getStatus(bpm);
+          statusText.textContent = status.text;
+          statusText.style.color = status.color;
+
+          drawGraph(bpm);
+        }
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
