@@ -98,7 +98,7 @@
   const ctx = canvas.getContext("2d");
 
   let bpmData = [];
-  let serialBuffer = "";   // 🔑 IMPORTANT BUFFER
+  let serialBuffer = "";   
 
   function getStatus(bpm) {
     if (bpm < 60) return { text: "LOW BP", color: "yellow" };
@@ -144,17 +144,14 @@
       const { value, done } = await reader.read();
       if (done) break;
 
-      // 🔑 Accumulate incoming serial data
       serialBuffer += value;
 
-      // Split by newline
       const lines = serialBuffer.split("\n");
-      serialBuffer = lines.pop(); // keep incomplete data
+      serialBuffer = lines.pop(); 
 
       for (let line of lines) {
         line = line.trim();
 
-        // Accept ONLY numeric BPM values
         if (/^\d+$/.test(line)) {
           const bpm = parseInt(line);
 
@@ -172,4 +169,5 @@
 </script>
 
 </body>
+
 </html>
